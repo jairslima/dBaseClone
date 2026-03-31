@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.dbf
+*.ndx
+*.ntx
+*.cdx
+*.mdx
+*.spec
+*.exe
+.claude/
