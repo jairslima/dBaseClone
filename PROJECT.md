@@ -13,7 +13,7 @@ Clone funcional do dBASE classico para terminal, com suporte a indices NDX, NTX,
 ```
 dBaseClone/
   run.py                     # Launcher
-  run_tests.py               # Suite de testes automatizados (35 testes)
+  run_tests.py               # Suite de testes automatizados (48 testes)
   setup.py                   # Instalacao pip
   requirements.txt           # Dependencias
   demo.prg                   # Programa de demonstracao
@@ -29,6 +29,8 @@ dBaseClone/
     interpreter.py           # Interpretador PRG (linguagem de programacao)
     sql.py                   # Motor SQL (SELECT, INSERT, UPDATE, DELETE, DDL)
     io_formats.py            # Import/Export (CSV, JSON, XML, SDF, DELIMITED, XLS)
+    reports.py               # REPORT FORM e LABEL FORM engine
+    debugger.py              # Debugger interativo para PRG
     indexes/
       __init__.py
       ndx.py                 # Indice NDX (dBASE III original)
@@ -103,11 +105,30 @@ COUNT, SUM, AVERAGE
 ### Variaveis
 STORE/=, PUBLIC, PRIVATE, RELEASE, DECLARE (arrays)
 
+### Report e Label
+- **REPORT FORM** file [TO FILE f] [FOR cond] [WHILE cond] [HEADING text] [PLAIN] [SUMMARY] [NOEJECT]
+- **LABEL FORM** file [TO FILE f] [FOR cond] [WHILE cond] [SAMPLE]
+- **CREATE REPORT** file (interativo)
+- **CREATE LABEL** file (interativo, com layouts pre-definidos: 3x10, 2x10, 1x10, cheshire)
+- Definicoes em JSON (.FRM e .LBL) com suporte a grupos, subtotais e totais gerais
+
+### Macro substituicao
+- **&variavel**: substitui conteudo da variavel como texto
+- **&variavel.**: ponto como terminador (permite concatenacao)
+- **&(expressao)**: avalia expressao e substitui resultado
+- Funciona em comandos e expressoes
+
 ### Configuracao (SET)
-TALK, EXACT, DELETED, DATE, CENTURY, EPOCH, DECIMALS, DEFAULT, PATH, FILTER, RELATION, COLOR, HEADING, MARGIN, DELIMITER, INDEX, ORDER, SOFTSEEK, UNIQUE, NEAR, CARRY, BELL, ESCAPE, CONSOLE, PRINTER, ALTERNATE, DEBUG
+TALK, EXACT, DELETED, DATE, CENTURY, EPOCH, DECIMALS, DEFAULT, PATH, FILTER, RELATION, COLOR, HEADING, MARGIN, DELIMITER, INDEX, ORDER, SOFTSEEK, UNIQUE, NEAR, CARRY, BELL, ESCAPE, CONSOLE, PRINTER, ALTERNATE, DEBUG, STEP, BREAKPOINT
 
 ### Linguagem PRG
 IF/ELSEIF/ELSE/ENDIF, DO WHILE/ENDDO, FOR/NEXT, DO CASE/CASE/OTHERWISE/ENDCASE, SCAN/ENDSCAN, PROCEDURE/FUNCTION/RETURN, DO programa.prg
+
+### Debugger PRG
+- **SET STEP ON/OFF**: execucao passo a passo
+- **SET DEBUG ON/OFF**: ativar/desativar debugger
+- **SET BREAKPOINT TO n**: definir breakpoint na linha n
+- Comandos no prompt (debug): step, next, continue, break, print, vars, where, list, quit
 
 ### Expressoes e funcoes (100+)
 - **String:** ALLTRIM, LTRIM, RTRIM, UPPER, LOWER, SUBSTR, LEFT, RIGHT, AT, RAT, LEN, SPACE, REPLICATE, STUFF, STRTRAN, PADL, PADR, PADC, CHR, ASC, LIKE, TRANSFORM, OCCURS, PROPER, ISALPHA, ISDIGIT, ISUPPER, ISLOWER
@@ -139,19 +160,19 @@ IF/ELSEIF/ELSE/ENDIF, DO WHILE/ENDDO, FOR/NEXT, DO CASE/CASE/OTHERWISE/ENDCASE, 
 ## Estado atual
 
 - v1.0.0: Implementacao completa e funcional
-- 8.500+ linhas de codigo em 21 arquivos Python
+- 9.500+ linhas de codigo em 23 arquivos Python
 - Todos os comandos core do dBASE III/IV implementados
 - 4 formatos de indice com suporte a criacao, leitura, escrita e reconstrucao
 - 100+ funcoes built-in
 - Motor SQL completo (SELECT com JOINs, GROUP BY, HAVING, agregacoes)
 - Import/Export em 6 formatos (CSV, JSON, XML, SDF, DELIMITED, XLS)
 - Interpretador PRG com suporte a todas as estruturas de controle
-- 35 testes automatizados passando
+- Report Form e Label Form com definicoes JSON
+- Macro substituicao (&var, &var., &(expr))
+- Debugger interativo para PRG (step, breakpoints, watch)
+- 48 testes automatizados passando
 
 ## Proximos passos possiveis
 
-- Report Form designer
-- Label Form designer
 - Suporte a rede (file locking)
-- Macro substituicao (&var)
-- Debugger interativo para PRG
+- Compilador PRG (gerar executavel standalone)

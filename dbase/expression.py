@@ -485,6 +485,73 @@ class ExpressionEvaluator:
         """Register built-in functions."""
         self.functions.update(func_dict)
 
+    def _expand_macros(self, text):
+        """Expand &variable macro substitutions before parsing."""
+        if "&" not in text or self.env is None:
+            return text
+
+        result = []
+        i = 0
+        in_string = False
+        quote_char = None
+
+        while i < len(text):
+            ch = text[i]
+            if ch in ('"', "'") and not in_string:
+                in_string = True
+                quote_char = ch
+                result.append(ch)
+                i += 1
+                continue
+            if in_string and ch == quote_char:
+                in_string = False
+                result.append(ch)
+                i += 1
+                continue
+            if in_string:
+                result.append(ch)
+                i += 1
+                continue
+
+            if ch == "&" and i + 1 < len(text):
+                next_ch = text[i + 1]
+                if next_ch == "(":
+                    depth = 1
+                    j = i + 2
+                    while j < len(text) and depth > 0:
+                        if text[j] == "(":
+                            depth += 1
+                        elif text[j] == ")":
+                            depth -= 1
+                        j += 1
+                    expr = text[i + 2:j - 1]
+                    try:
+                        val = self.evaluate(expr)
+                        result.append(str(val) if val is not None else "")
+                    except Exception:
+                        result.append(text[i:j])
+                    i = j
+                    continue
+                if next_ch.isalpha() or next_ch == "_":
+                    j = i + 1
+                    while j < len(text) and (text[j].isalnum() or text[j] == "_"):
+                        j += 1
+                    var_name = text[i + 1:j].upper()
+                    val = self.env.get_variable(var_name)
+                    if val is not None:
+                        result.append(str(val).strip() if isinstance(val, str) else str(val))
+                    else:
+                        result.append(text[i:j])
+                    if j < len(text) and text[j] == ".":
+                        j += 1
+                    i = j
+                    continue
+
+            result.append(ch)
+            i += 1
+
+        return "".join(result)
+
     def evaluate(self, expr_str, record=None, recno=None):
         """Parse and evaluate an expression string."""
         if expr_str is None:
@@ -492,6 +559,9 @@ class ExpressionEvaluator:
         expr_str = str(expr_str).strip()
         if not expr_str:
             return ""
+
+        # Macro substitution (&variable)
+        expr_str = self._expand_macros(expr_str)
 
         try:
             lexer = Lexer(expr_str)

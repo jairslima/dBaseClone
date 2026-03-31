@@ -28,6 +28,7 @@ class Config:
         self.printer = False
         self.alternate = False
         self.debug = False
+        self.step = False
         self.heading = True
         self.intensity = True
         self.wrap = False

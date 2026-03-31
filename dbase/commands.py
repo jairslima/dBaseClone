@@ -13,6 +13,7 @@ from datetime import date
 from .dbf import DBF
 from . import io_formats
 from .sql import SQLExecutor
+from .reports import ReportEngine, LabelEngine
 from .indexes.ndx import NDXIndex
 from .indexes.ntx import NTXIndex
 from .indexes.cdx import CDXIndex
@@ -28,10 +29,92 @@ class CommandInterpreter:
         self.config = config
         self.output_lines = []
         self.sql = SQLExecutor(env, evaluator, config)
+        self.report_engine = ReportEngine(evaluator, config)
+        self.label_engine = LabelEngine(evaluator, config)
         self._commands = self._build_command_table()
 
     def _output(self, text=""):
         self.output_lines.append(str(text))
+
+    def _expand_macros(self, text):
+        """Expand &variable macro substitutions in text.
+
+        &var     - replaced by the string value of var
+        &var.    - same, but the trailing dot is consumed (allows concatenation)
+        &(expr)  - replaced by the string result of evaluating expr
+        """
+        if "&" not in text:
+            return text
+
+        result = []
+        i = 0
+        in_string = False
+        quote_char = None
+
+        while i < len(text):
+            ch = text[i]
+
+            # Track string literals to avoid substitution inside them
+            if ch in ('"', "'") and not in_string:
+                in_string = True
+                quote_char = ch
+                result.append(ch)
+                i += 1
+                continue
+            if in_string and ch == quote_char:
+                in_string = False
+                quote_char = None
+                result.append(ch)
+                i += 1
+                continue
+            if in_string:
+                result.append(ch)
+                i += 1
+                continue
+
+            if ch == "&" and i + 1 < len(text):
+                next_ch = text[i + 1]
+
+                # &(expression) form
+                if next_ch == "(":
+                    depth = 1
+                    j = i + 2
+                    while j < len(text) and depth > 0:
+                        if text[j] == "(":
+                            depth += 1
+                        elif text[j] == ")":
+                            depth -= 1
+                        j += 1
+                    expr = text[i + 2:j - 1]
+                    try:
+                        val = self.eval.evaluate(expr)
+                        result.append(str(val) if val is not None else "")
+                    except Exception:
+                        result.append(text[i:j])
+                    i = j
+                    continue
+
+                # &variable form
+                if next_ch.isalpha() or next_ch == "_":
+                    j = i + 1
+                    while j < len(text) and (text[j].isalnum() or text[j] == "_"):
+                        j += 1
+                    var_name = text[i + 1:j].upper()
+                    val = self.env.get_variable(var_name)
+                    if val is not None:
+                        result.append(str(val).strip() if isinstance(val, str) else str(val))
+                    else:
+                        result.append(text[i:j])
+                    # Consume trailing dot (macro terminator)
+                    if j < len(text) and text[j] == ".":
+                        j += 1
+                    i = j
+                    continue
+
+            result.append(ch)
+            i += 1
+
+        return "".join(result)
 
     def execute(self, line):
         """Parse and execute a single command line."""
@@ -44,6 +127,9 @@ class CommandInterpreter:
         comment_pos = line.find("&&")
         if comment_pos > 0:
             line = line[:comment_pos].strip()
+
+        # Macro substitution (&variable)
+        line = self._expand_macros(line)
 
         # Handle ? and ?? (print expressions)
         if line.startswith("??"):
@@ -207,7 +293,11 @@ class CommandInterpreter:
             "UPDATE": self._cmd_update,
             "JOIN": self._cmd_join,
             "LABEL": self._cmd_label,
+            "LABEL FORM": self._cmd_label_form,
             "REPORT": self._cmd_report,
+            "REPORT FORM": self._cmd_report_form,
+            "CREATE REPORT": self._cmd_create_report,
+            "CREATE LABEL": self._cmd_create_label,
             "SELECT": self._cmd_sql,
             "INSERT": self._cmd_sql,
             "UPDATE": self._cmd_sql_update,
@@ -1680,6 +1770,7 @@ class CommandInterpreter:
             "PRINTER": ("printer", "bool"),
             "ALTERNATE": ("alternate", "bool"),
             "DEBUG": ("debug", "bool"),
+            "STEP": ("step", "bool"),
         }
 
         if setting in settings_map:
@@ -1690,11 +1781,24 @@ class CommandInterpreter:
             elif val_upper == "OFF":
                 setattr(self.config, attr, False)
             else:
-                current = getattr(self.config, attr)
+                current = getattr(self.config, attr, False)
                 self._output(f"SET {setting} is {'ON' if current else 'OFF'}")
                 return self.output_lines
-            if self.config.talk:
+            # Connect SET DEBUG/STEP to the debugger
+            if setting in ("DEBUG", "STEP"):
+                debugger = getattr(self.env, '_debugger', None)
+                if debugger is None:
+                    from .debugger import Debugger
+                    debugger = Debugger(self.env, self.eval, self.config)
+                    self.env._debugger = debugger
                 new_val = getattr(self.config, attr)
+                if setting == "DEBUG":
+                    debugger.enabled = new_val
+                elif setting == "STEP":
+                    debugger.enabled = new_val
+                    debugger.step_mode = new_val
+            if self.config.talk:
+                new_val = getattr(self.config, attr, False)
                 self._output(f"SET {setting} {'ON' if new_val else 'OFF'}")
             return self.output_lines
 
@@ -1745,6 +1849,27 @@ class CommandInterpreter:
                 self.config.search_path = value.strip('"').strip("'")
             else:
                 self._output(f"Path: {self.config.search_path}")
+            return self.output_lines
+
+        if setting == "BREAKPOINT":
+            debugger = getattr(self.env, '_debugger', None)
+            if debugger is None:
+                from .debugger import Debugger
+                debugger = Debugger(self.env, self.eval, self.config)
+                self.env._debugger = debugger
+            if value:
+                try:
+                    bp_line = int(value)
+                    debugger.breakpoints.add(bp_line)
+                    debugger.enabled = True
+                    self._output(f"Breakpoint set at line {bp_line}")
+                except ValueError:
+                    self._output("Syntax: SET BREAKPOINT TO <line_number>")
+            else:
+                if debugger.breakpoints:
+                    self._output("Breakpoints: " + ", ".join(str(b) for b in sorted(debugger.breakpoints)))
+                else:
+                    self._output("No breakpoints set.")
             return self.output_lines
 
         if setting == "COLOR" or setting == "COLOUR":
@@ -2174,9 +2299,201 @@ class CommandInterpreter:
         return self.output_lines
 
     def _cmd_label(self, rest):
-        self._output("LABEL: label printing not yet implemented.")
+        """Route LABEL command."""
+        upper = rest.strip().upper()
+        if upper.startswith("FORM"):
+            return self._cmd_label_form(rest.strip()[4:].strip())
+        self._output("Syntax: LABEL FORM <filename> [options]")
+        return self.output_lines
+
+    def _cmd_label_form(self, rest):
+        """LABEL FORM <file> [TO PRINTER|TO FILE f] [FOR cond] [WHILE cond] [SAMPLE]"""
+        wa = self._require_dbf()
+        if not wa:
+            return self.output_lines
+
+        parts = self._tokenize_command(rest)
+        if not parts:
+            self._output("Syntax: LABEL FORM <filename> [TO PRINTER|TO FILE f] [FOR cond] [WHILE cond] [SAMPLE]")
+            return self.output_lines
+
+        lbl_file = parts[0].strip('"').strip("'")
+        lbl_file = self._ensure_extension(lbl_file, ".lbl")
+        lbl_file = self._resolve_path(lbl_file)
+
+        if not os.path.exists(lbl_file):
+            self._output(f"Label form not found: {lbl_file}")
+            return self.output_lines
+
+        options, for_expr, while_expr, to_file = self._parse_report_options(rest, parts[0])
+        records = self._collect_records(wa, for_expr, while_expr)
+
+        output = self.label_engine.run_labels(lbl_file, wa.dbf, records, options)
+        if to_file:
+            with open(to_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(output))
+            self._output(f"Labels written to {to_file}")
+        else:
+            for line in output:
+                self._output(line)
         return self.output_lines
 
     def _cmd_report(self, rest):
-        self._output("REPORT: report forms not yet implemented.")
+        """Route REPORT command."""
+        upper = rest.strip().upper()
+        if upper.startswith("FORM"):
+            return self._cmd_report_form(rest.strip()[4:].strip())
+        self._output("Syntax: REPORT FORM <filename> [options]")
         return self.output_lines
+
+    def _cmd_report_form(self, rest):
+        """REPORT FORM <file> [TO PRINTER|TO FILE f] [FOR cond] [WHILE cond] [HEADING text] [PLAIN] [SUMMARY] [NOEJECT]"""
+        wa = self._require_dbf()
+        if not wa:
+            return self.output_lines
+
+        parts = self._tokenize_command(rest)
+        if not parts:
+            self._output("Syntax: REPORT FORM <filename> [options]")
+            return self.output_lines
+
+        frm_file = parts[0].strip('"').strip("'")
+        frm_file = self._ensure_extension(frm_file, ".frm")
+        frm_file = self._resolve_path(frm_file)
+
+        if not os.path.exists(frm_file):
+            self._output(f"Report form not found: {frm_file}")
+            return self.output_lines
+
+        options, for_expr, while_expr, to_file = self._parse_report_options(rest, parts[0])
+        records = self._collect_records(wa, for_expr, while_expr)
+
+        output = self.report_engine.run_report(frm_file, wa.dbf, records, options)
+        if to_file:
+            with open(to_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(output))
+            self._output(f"Report written to {to_file}")
+        else:
+            for line in output:
+                self._output(line)
+        return self.output_lines
+
+    def _cmd_create_report(self, rest):
+        """CREATE REPORT <filename>"""
+        wa = self._require_dbf()
+        if not wa:
+            return self.output_lines
+
+        parts = self._tokenize_command(rest)
+        if not parts:
+            self._output("Syntax: CREATE REPORT <filename>")
+            return self.output_lines
+
+        frm_file = parts[0].strip('"').strip("'")
+        frm_file = self._ensure_extension(frm_file, ".frm")
+        frm_file = self._resolve_path(frm_file)
+
+        defn, msg = self.report_engine.create_report(frm_file, wa.dbf)
+        self._output(msg)
+        return self.output_lines
+
+    def _cmd_create_label(self, rest):
+        """CREATE LABEL <filename>"""
+        wa = self._require_dbf()
+        if not wa:
+            return self.output_lines
+
+        parts = self._tokenize_command(rest)
+        if not parts:
+            self._output("Syntax: CREATE LABEL <filename>")
+            return self.output_lines
+
+        lbl_file = parts[0].strip('"').strip("'")
+        lbl_file = self._ensure_extension(lbl_file, ".lbl")
+        lbl_file = self._resolve_path(lbl_file)
+
+        defn, msg = self.label_engine.create_label(lbl_file, wa.dbf)
+        self._output(msg)
+        return self.output_lines
+
+    def _parse_report_options(self, rest, filename):
+        """Parse options common to REPORT FORM and LABEL FORM."""
+        upper = rest.upper()
+        options = {}
+        for_expr = None
+        while_expr = None
+        to_file = None
+
+        # Remove the filename from rest for parsing
+        rest_after = rest[len(filename):].strip()
+        upper_after = rest_after.upper()
+
+        # TO FILE
+        m = re.search(r'\bTO\s+FILE\s+(\S+)', rest_after, re.IGNORECASE)
+        if m:
+            to_file = m.group(1).strip('"').strip("'")
+            to_file = self._resolve_path(to_file)
+
+        # FOR condition
+        m = re.search(r'\bFOR\s+(.+?)(?:\s+(?:WHILE|TO|HEADING|PLAIN|SUMMARY|NOEJECT|SAMPLE)\b|$)', rest_after, re.IGNORECASE)
+        if m:
+            for_expr = m.group(1).strip()
+
+        # WHILE condition
+        m = re.search(r'\bWHILE\s+(.+?)(?:\s+(?:FOR|TO|HEADING|PLAIN|SUMMARY|NOEJECT|SAMPLE)\b|$)', rest_after, re.IGNORECASE)
+        if m:
+            while_expr = m.group(1).strip()
+
+        # HEADING
+        m = re.search(r'\bHEADING\s+"([^"]*)"', rest_after, re.IGNORECASE)
+        if not m:
+            m = re.search(r"\bHEADING\s+'([^']*)'", rest_after, re.IGNORECASE)
+        if m:
+            options["heading"] = m.group(1)
+
+        # Flags
+        if re.search(r'\bPLAIN\b', upper_after):
+            options["plain"] = True
+        if re.search(r'\bSUMMARY\b', upper_after):
+            options["summary"] = True
+        if re.search(r'\bNOEJECT\b', upper_after):
+            options["noeject"] = True
+        if re.search(r'\bSAMPLE\b', upper_after):
+            options["sample"] = True
+
+        return options, for_expr, while_expr, to_file
+
+    def _collect_records(self, wa, for_expr=None, while_expr=None):
+        """Collect records from current work area applying FOR/WHILE conditions."""
+        records = []
+        dbf = wa.dbf
+        saved_recno = wa.recno
+
+        wa.go_to(1)
+        while not wa.eof:
+            rec = dbf.records[wa.recno - 1]
+            if rec.deleted and self.config.deleted:
+                wa.skip(1)
+                continue
+
+            if while_expr:
+                try:
+                    if not self.eval.eval_condition(while_expr, rec, wa.recno):
+                        break
+                except Exception:
+                    break
+
+            if for_expr:
+                try:
+                    if not self.eval.eval_condition(for_expr, rec, wa.recno):
+                        wa.skip(1)
+                        continue
+                except Exception:
+                    wa.skip(1)
+                    continue
+
+            records.append((wa.recno, rec))
+            wa.skip(1)
+
+        wa.go_to(saved_recno)
+        return records

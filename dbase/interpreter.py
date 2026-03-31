@@ -15,6 +15,8 @@ Executes .PRG files with full support for:
 import os
 import re
 
+from .debugger import Debugger
+
 
 class ProgramInterpreter:
     """Interprets and executes dBASE .PRG program files."""
@@ -29,6 +31,10 @@ class ProgramInterpreter:
         self._return_value = None
         self._loop_exit = False
         self._exit_flag = False
+        self.debugger = getattr(env, '_debugger', None)
+        if self.debugger is None:
+            self.debugger = Debugger(env, evaluator, config)
+            env._debugger = self.debugger
 
     def run_file(self, filename):
         """Load and execute a PRG file."""
@@ -37,6 +43,7 @@ class ProgramInterpreter:
             source = f.read()
 
         lines = self._preprocess(source)
+        self.debugger.attach(lines, os.path.basename(filename))
         self._extract_procedures(lines)
         self._execute_block(lines, 0, len(lines))
         return self.output
@@ -45,6 +52,7 @@ class ProgramInterpreter:
         """Execute a list of source lines."""
         self.output = []
         processed = self._preprocess("\n".join(lines))
+        self.debugger.attach(processed, "<interactive>")
         self._execute_block(processed, 0, len(processed))
         return self.output
 
@@ -168,6 +176,13 @@ class ProgramInterpreter:
                     self._return_value = self.eval.evaluate(expr)
                 self._exit_flag = True
                 return
+
+            # Debugger check
+            if self.debugger.should_break(i, line):
+                action = self.debugger.prompt(i, line)
+                if action == "quit":
+                    self._exit_flag = True
+                    return
 
             # Regular command
             self._execute_command(line)

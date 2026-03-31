@@ -258,6 +258,103 @@ output = run(cmd, '? y * 2')
 test("Atribuicao e expressao", any("84" in str(o) for o in output))
 
 # ============================================================
+print("\n=== TESTE 16: Macro substituicao ===")
+env, ev, cmd, cfg = setup()
+
+run(cmd, 'STORE "tabmacro" TO tabela')
+cleanup("tabmacro.dbf")
+run(cmd, 'CREATE TABLE &tabela (nome C(20), val N(5,0))')
+run(cmd, 'USE &tabela')
+test("Macro em CREATE TABLE/USE", env.current_workarea().dbf is not None)
+
+run(cmd, 'APPEND BLANK')
+run(cmd, 'REPLACE nome WITH "Test"')
+run(cmd, 'STORE "nome" TO campo')
+output = run(cmd, '? &campo.')
+test("Macro &campo. expande para field", any("Test" in str(o) for o in output))
+
+# &(expression) form
+output = run(cmd, '? &("UP"+"PER")("abc")')
+test("Macro &(expr) funciona", any("ABC" in str(o) for o in output))
+
+run(cmd, "CLOSE ALL")
+cleanup("tabmacro.dbf")
+
+# ============================================================
+print("\n=== TESTE 17: REPORT FORM ===")
+env, ev, cmd, cfg = setup()
+cleanup("rpt_test.dbf", "rpt_test.frm", "rpt_out.txt")
+
+run(cmd, 'CREATE TABLE rpt_test (nome C(15), depto C(10), salario N(10,2))')
+run(cmd, 'USE rpt_test')
+for n, d, s in [('Jair','TI',5000), ('Maria','TI',7200), ('Pedro','RH',3100)]:
+    run(cmd, 'APPEND BLANK')
+    run(cmd, f'REPLACE nome WITH "{n}", depto WITH "{d}", salario WITH {s}')
+
+import json
+frm = {
+    'title': 'Test Report', 'page_width': 60, 'left_margin': 0,
+    'lines_per_page': 58, 'columns': [
+        {'field': 'nome', 'heading': 'Name', 'width': 15, 'total': False},
+        {'field': 'salario', 'heading': 'Salary', 'width': 12, 'decimals': 2, 'total': True},
+    ]
+}
+with open('rpt_test.frm', 'w') as f:
+    json.dump(frm, f)
+
+output = run(cmd, 'REPORT FORM rpt_test')
+test("REPORT FORM gera saida", len(output) > 5)
+test("REPORT FORM tem titulo", any("Test Report" in str(o) for o in output))
+test("REPORT FORM tem total", any("Total" in str(o) for o in output))
+
+# TO FILE
+run(cmd, 'REPORT FORM rpt_test TO FILE rpt_out.txt')
+test("REPORT TO FILE cria arquivo", os.path.exists("rpt_out.txt"))
+
+run(cmd, "CLOSE ALL")
+cleanup("rpt_test.dbf", "rpt_test.frm", "rpt_out.txt")
+
+# ============================================================
+print("\n=== TESTE 18: LABEL FORM ===")
+env, ev, cmd, cfg = setup()
+cleanup("lbl_test.dbf", "lbl_test.lbl")
+
+run(cmd, 'CREATE TABLE lbl_test (nome C(15), cidade C(15))')
+run(cmd, 'USE lbl_test')
+for n, c in [('Jair','SP'), ('Maria','RJ'), ('Pedro','BH')]:
+    run(cmd, 'APPEND BLANK')
+    run(cmd, f'REPLACE nome WITH "{n}", cidade WITH "{c}"')
+
+lbl = {
+    'width': 25, 'height': 2, 'left_margin': 0,
+    'lines_between': 1, 'spaces_between': 3, 'columns_count': 2,
+    'lines': ['TRIM(nome)', 'TRIM(cidade)']
+}
+with open('lbl_test.lbl', 'w') as f:
+    json.dump(lbl, f)
+
+output = run(cmd, 'LABEL FORM lbl_test')
+test("LABEL FORM gera saida", len(output) > 3)
+test("LABEL FORM contem dados", any("Jair" in str(o) for o in output))
+
+run(cmd, "CLOSE ALL")
+cleanup("lbl_test.dbf", "lbl_test.lbl")
+
+# ============================================================
+print("\n=== TESTE 19: SET BREAKPOINT e debugger ===")
+env, ev, cmd, cfg = setup()
+
+run(cmd, 'SET BREAKPOINT TO 5')
+test("SET BREAKPOINT cria debugger", hasattr(env, '_debugger'))
+test("Breakpoint registrado", 5 in env._debugger.breakpoints)
+
+run(cmd, 'SET DEBUG ON')
+test("SET DEBUG ON ativa debugger", env._debugger.enabled)
+
+run(cmd, 'SET DEBUG OFF')
+test("SET DEBUG OFF desativa", not env._debugger.enabled)
+
+# ============================================================
 # RESULTADO FINAL
 print("\n" + "=" * 50)
 print(f"RESULTADO: {passed} passou, {failed} falhou de {passed + failed} testes")
