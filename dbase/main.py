@@ -255,6 +255,44 @@ class DBaseREPL:
 
 def main():
     """Entry point."""
+    # Handle --compile mode
+    if len(sys.argv) > 1 and sys.argv[1] == "--compile":
+        from .compiler import PRGCompiler
+        if len(sys.argv) < 3:
+            print("Usage: dbase --compile <program.prg> [-o output.exe] [--icon file.ico] [--data file1 file2 ...]")
+            sys.exit(1)
+
+        prg_file = sys.argv[2]
+        output = None
+        icon = None
+        extra_data = []
+
+        i = 3
+        while i < len(sys.argv):
+            if sys.argv[i] in ("-o", "--output"):
+                i += 1
+                output = sys.argv[i] if i < len(sys.argv) else None
+            elif sys.argv[i] == "--icon":
+                i += 1
+                icon = sys.argv[i] if i < len(sys.argv) else None
+            elif sys.argv[i] == "--data":
+                i += 1
+                while i < len(sys.argv) and not sys.argv[i].startswith("-"):
+                    extra_data.append(sys.argv[i])
+                    i += 1
+                continue
+            i += 1
+
+        compiler = PRGCompiler()
+        try:
+            result = compiler.compile(prg_file, output=output, icon=icon,
+                                      extra_data=extra_data if extra_data else None)
+            print(f"\nCompiled successfully: {result}")
+        except Exception as e:
+            print(f"\nCompilation failed: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
+
     prg_file = None
     if len(sys.argv) > 1:
         prg_file = sys.argv[1]

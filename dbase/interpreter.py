@@ -194,7 +194,7 @@ class ProgramInterpreter:
             result = self.cmd.execute(line)
             self.output.extend(result)
         except SystemExit:
-            raise
+            self._exit_flag = True
         except Exception as e:
             self.output.append(f"Error: {e}")
 

@@ -304,6 +304,7 @@ class CommandInterpreter:
             "DROP": self._cmd_sql,
             "ALTER": self._cmd_sql,
             "CREATE TABLE": self._cmd_sql_create_table,
+            "COMPILE": self._cmd_compile,
         }
 
     def _format_value(self, val):
@@ -2159,6 +2160,11 @@ class CommandInterpreter:
         self._output("            JOIN, WHERE, GROUP BY, HAVING, ORDER BY, DISTINCT")
         self._output("            COUNT(), SUM(), AVG(), MIN(), MAX()")
         self._output("")
+        self._output("Reports:    REPORT FORM, LABEL FORM, CREATE REPORT, CREATE LABEL")
+        self._output("Macro:      &variable, &variable., &(expression)")
+        self._output("Debug:      SET STEP ON/OFF, SET DEBUG ON/OFF, SET BREAKPOINT TO n")
+        self._output("Compile:    COMPILE <program.prg> [TO output.exe] [DATA files] [ICON f]")
+        self._output("")
         self._output("Index formats: NDX (dBASE), NTX (Clipper), CDX (FoxPro), MDX (dBASE IV)")
         self._output("")
         self._output("Type DISPLAY STATUS for current settings.")
@@ -2206,6 +2212,58 @@ class CommandInterpreter:
             os.system(rest)
         except Exception as e:
             self._output(f"Error: {e}")
+        return self.output_lines
+
+    def _cmd_compile(self, rest):
+        """COMPILE <program.prg> [TO <output.exe>] [DATA file1,file2,...] [ICON file.ico]"""
+        parts = self._tokenize_command(rest)
+        if not parts:
+            self._output("Syntax: COMPILE <program.prg> [TO <output.exe>] [DATA file1,...] [ICON file.ico]")
+            return self.output_lines
+
+        prg_file = parts[0].strip('"').strip("'")
+        prg_file = self._ensure_extension(prg_file, ".prg")
+        prg_file = self._resolve_path(prg_file)
+
+        if not os.path.exists(prg_file):
+            self._output(f"File not found: {prg_file}")
+            return self.output_lines
+
+        # Parse options
+        output = None
+        icon = None
+        extra_data = []
+        upper_rest = rest.upper()
+
+        m = re.search(r'\bTO\s+(\S+)', rest, re.IGNORECASE)
+        if m:
+            output = m.group(1).strip('"').strip("'")
+            if not output.lower().endswith(".exe"):
+                output += ".exe"
+
+        m = re.search(r'\bICON\s+(\S+)', rest, re.IGNORECASE)
+        if m:
+            icon = m.group(1).strip('"').strip("'")
+
+        m = re.search(r'\bDATA\s+(.+?)(?:\s+(?:TO|ICON)\b|$)', rest, re.IGNORECASE)
+        if m:
+            for f in m.group(1).split(","):
+                f = f.strip().strip('"').strip("'")
+                if f:
+                    extra_data.append(self._resolve_path(f))
+
+        from .compiler import PRGCompiler
+        compiler = PRGCompiler(verbose=True)
+
+        self._output(f"Compiling {os.path.basename(prg_file)}...")
+        try:
+            result = compiler.compile(
+                prg_file, output=output, icon=icon,
+                extra_data=extra_data if extra_data else None,
+            )
+            self._output(f"Compiled successfully: {result}")
+        except Exception as e:
+            self._output(f"Compilation failed: {e}")
         return self.output_lines
 
     def _cmd_wait(self, rest):

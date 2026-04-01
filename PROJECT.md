@@ -31,6 +31,7 @@ dBaseClone/
     io_formats.py            # Import/Export (CSV, JSON, XML, SDF, DELIMITED, XLS)
     reports.py               # REPORT FORM e LABEL FORM engine
     debugger.py              # Debugger interativo para PRG
+    compiler.py              # Compilador PRG para .exe standalone
     indexes/
       __init__.py
       ndx.py                 # Indice NDX (dBASE III original)
@@ -130,6 +131,14 @@ IF/ELSEIF/ELSE/ENDIF, DO WHILE/ENDDO, FOR/NEXT, DO CASE/CASE/OTHERWISE/ENDCASE, 
 - **SET BREAKPOINT TO n**: definir breakpoint na linha n
 - Comandos no prompt (debug): step, next, continue, break, print, vars, where, list, quit
 
+### Compilador PRG
+- **COMPILE programa.prg [TO output.exe] [DATA arq1,...] [ICON icone.ico]**: compila PRG em .exe standalone
+- **python run.py --compile programa.prg [-o output.exe]**: compilacao via CLI
+- **python -m dbase.compiler programa.prg [-o output.exe]**: compilacao direta
+- Resolve dependencias automaticamente (DO, REPORT FORM, LABEL FORM, USE)
+- Empacota runtime dBase completo + fontes PRG embarcados
+- Gera executavel unico (~9.5 MB) via PyInstaller
+
 ### Expressoes e funcoes (100+)
 - **String:** ALLTRIM, LTRIM, RTRIM, UPPER, LOWER, SUBSTR, LEFT, RIGHT, AT, RAT, LEN, SPACE, REPLICATE, STUFF, STRTRAN, PADL, PADR, PADC, CHR, ASC, LIKE, TRANSFORM, OCCURS, PROPER, ISALPHA, ISDIGIT, ISUPPER, ISLOWER
 - **Numeric:** ABS, INT, ROUND, CEILING, FLOOR, SQRT, EXP, LOG, LOG10, MOD, MIN, MAX, SIGN, PI, SIN, COS, TAN, ASIN, ACOS, ATAN, DTOR, RTOD, RAND
@@ -160,7 +169,7 @@ IF/ELSEIF/ELSE/ENDIF, DO WHILE/ENDDO, FOR/NEXT, DO CASE/CASE/OTHERWISE/ENDCASE, 
 ## Estado atual
 
 - v1.0.0: Implementacao completa e funcional
-- 9.500+ linhas de codigo em 23 arquivos Python
+- 10.000+ linhas de codigo em 24 arquivos Python
 - Todos os comandos core do dBASE III/IV implementados
 - 4 formatos de indice com suporte a criacao, leitura, escrita e reconstrucao
 - 100+ funcoes built-in
@@ -175,4 +184,5 @@ IF/ELSEIF/ELSE/ENDIF, DO WHILE/ENDDO, FOR/NEXT, DO CASE/CASE/OTHERWISE/ENDCASE, 
 ## Proximos passos possiveis
 
 - Suporte a rede (file locking)
-- Compilador PRG (gerar executavel standalone)
+- Otimizacao do compilador (reduzir tamanho do exe, UPX compression)
+- Interface grafica para o compilador
