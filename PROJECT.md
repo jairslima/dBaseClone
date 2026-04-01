@@ -169,7 +169,7 @@ IF/ELSEIF/ELSE/ENDIF, DO WHILE/ENDDO, FOR/NEXT, DO CASE/CASE/OTHERWISE/ENDCASE, 
 ## Estado atual
 
 - v1.0.0: Implementacao completa e funcional
-- 10.000+ linhas de codigo em 24 arquivos Python
+- 10.177 linhas de codigo em 24 arquivos Python
 - Todos os comandos core do dBASE III/IV implementados
 - 4 formatos de indice com suporte a criacao, leitura, escrita e reconstrucao
 - 100+ funcoes built-in
@@ -181,8 +181,30 @@ IF/ELSEIF/ELSE/ENDIF, DO WHILE/ENDDO, FOR/NEXT, DO CASE/CASE/OTHERWISE/ENDCASE, 
 - Debugger interativo para PRG (step, breakpoints, watch)
 - 48 testes automatizados passando
 
-## Proximos passos possiveis
+## Melhorias planejadas
 
-- Suporte a rede (file locking)
-- Otimizacao do compilador (reduzir tamanho do exe, UPX compression)
-- Interface grafica para o compilador
+### Prioridade alta
+- **Suporte a rede (file locking)**: FLOCK(), RLOCK(), UNLOCK, SET EXCLUSIVE, para uso multi-usuario
+- **Macro substituicao em strings com aspas**: atualmente &var dentro de expressoes com aspas escapadas pode falhar; tratar corretamente nested quotes
+- **Testes do compilador**: adicionar testes automatizados para COMPILE (compilar e executar PRG, verificar saida)
+
+### Prioridade media
+- **Compilador: reduzir tamanho do exe**: usar UPX compression (--upx-dir), excluir modulos Python desnecessarios (tkinter, unittest, etc.)
+- **Compilador: suporte a PARAMETERS**: passar argumentos de linha de comando para o PRG compilado (sys.argv -> variaveis dBase)
+- **MODIFY COMMAND**: editor de texto integrado para editar .PRG dentro do REPL (curses-based)
+- **ON ERROR/ON ESCAPE**: tratamento de erros customizado no PRG
+- **@...GET/READ**: formularios interativos completos com validacao
+- **SET RELATION entre areas**: o SET RELATION existe mas pode precisar de mais testes com multi-tabela
+
+### Prioridade baixa
+- **Interface grafica para o compilador**: GUI com tkinter para selecionar PRG, opcoes, icone, e compilar
+- **Debugger visual**: interface curses para o debugger (em vez de prompt texto)
+- **Profiler PRG**: medir tempo de execucao por linha/funcao
+- **SCATTER/GATHER**: copiar registro para variaveis e vice-versa
+- **Memo fields (.FPT/.DBT)**: suporte completo a campos memo com arquivos externos
+- **Suporte a .DBC (database container)**: container FoxPro com metadados de tabelas
+- **Cross-compilation**: gerar .exe para Linux/Mac a partir do Windows (e vice-versa)
+
+### Bugs conhecidos
+- Tokenizer do commands.py: virgulas sao tratadas como separadores genericos, o que funciona para a maioria dos casos mas pode causar problemas em expressoes complexas com virgulas dentro de parenteses (ex: funcoes com multiplos argumentos em contextos especificos)
+- QUIT dentro de PRG: agora funciona via _exit_flag em vez de SystemExit, mas o QUIT no REPL interativo ainda usa SystemExit (comportamento correto, mas arquiteturas diferentes)
