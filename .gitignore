@@ -12,3 +12,27 @@ build/
 *.spec
 *.exe
 .claude/
+.env
+.env.*
+!.env.example
+!.env.exemplo
+*.key
+*.pem
+*.p12
+*.pkl
+*.pickle
+secrets.*
+client_secret*.json
+token.json
+*.keystore
+node_modules/
+*.log
+*.crdownload
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.zip
+*.7z
+.tmp*/
+Chave secreta*
