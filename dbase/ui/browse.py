@@ -17,6 +17,7 @@ Keys:
 """
 
 import os
+from ..term import limpar_tela
 import sys
 
 
@@ -42,7 +43,7 @@ def _browse_fallback(workarea, config):
     current_top = workarea.recno if workarea.recno > 0 else 1
 
     while True:
-        os.system("cls" if os.name == "nt" else "clear")
+        limpar_tela()
         print(f"=== BROWSE: {os.path.basename(dbf.filename)} === Record {workarea.recno}/{dbf.record_count} ===")
         print()
 

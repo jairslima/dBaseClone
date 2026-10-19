@@ -208,3 +208,11 @@ IF/ELSEIF/ELSE/ENDIF, DO WHILE/ENDDO, FOR/NEXT, DO CASE/CASE/OTHERWISE/ENDCASE, 
 ### Bugs conhecidos
 - Tokenizer do commands.py: virgulas sao tratadas como separadores genericos, o que funciona para a maioria dos casos mas pode causar problemas em expressoes complexas com virgulas dentro de parenteses (ex: funcoes com multiplos argumentos em contextos especificos)
 - QUIT dentro de PRG: agora funciona via _exit_flag em vez de SystemExit, mas o QUIT no REPL interativo ainda usa SystemExit (comportamento correto, mas arquiteturas diferentes)
+
+## Correções de segurança
+
+### 2026-10-19
+- **os.system para limpar a tela (ALTO do bandit)**: trocado por `dbase/term.py: limpar_tela()` com `subprocess.run` em lista (sem shell).
+- **RUN / ! (aceito e documentado)**: `os.system(rest)` em `commands.py` é o recurso `RUN` do dBASE, que executa o comando digitado pelo usuário ou escrito no `.prg`. Marcado com `# nosec B605` e explicado no README ("rode apenas .prg em que você confia").
+- **XML**: a importação usa o parser padrão do Python (bandit B314/B318); não importe XML de origem desconhecida (registrado no README).
+- **Verificação**: `python run_tests.py` (48 testes) e auditor sem achados ALTO.

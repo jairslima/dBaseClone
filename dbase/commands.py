@@ -11,6 +11,7 @@ import glob as globmod
 from datetime import date
 
 from .dbf import DBF
+from .term import limpar_tela
 from . import io_formats
 from .sql import SQLExecutor
 from .reports import ReportEngine, LabelEngine
@@ -2098,7 +2099,7 @@ class CommandInterpreter:
             self.env.release_all()
         else:
             # Clear screen
-            os.system("cls" if os.name == "nt" else "clear")
+            limpar_tela()
         return self.output_lines
 
     # ===== SQL COMMANDS =====
@@ -2209,7 +2210,9 @@ class CommandInterpreter:
         if rest.startswith("!"):
             rest = rest[1:].strip()
         try:
-            os.system(rest)
+            # Recurso RUN / ! do dBASE: executa o comando que o USUÁRIO digitou (ou que está no .PRG que ele
+            # escolheu rodar). Nunca rode .PRG de origem desconhecida: ele pode executar qualquer comando.
+            os.system(rest)  # nosec B605
         except Exception as e:
             self._output(f"Error: {e}")
         return self.output_lines

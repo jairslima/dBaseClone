@@ -37,3 +37,8 @@ Não é uma réplica exata de nenhum produto da Borland, da Ashton-Tate ou da Mi
 ## Licença
 
 MIT, veja `LICENSE`.
+
+## Segurança
+
+- Os comandos `RUN` e `!` executam o comando indicado no sistema operacional, como no dBASE original. **Rode apenas arquivos `.prg` em que você confia**: um programa pode executar qualquer comando.
+- Importação de XML usa o parser padrão do Python; não importe XML de origem desconhecida.
