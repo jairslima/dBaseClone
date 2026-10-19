@@ -36,3 +36,7 @@ node_modules/
 *.7z
 .tmp*/
 Chave secreta*
+
+# Seguranca - auditoria automatica
+credentials.*
+*.pfx
